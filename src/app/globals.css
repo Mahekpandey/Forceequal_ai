@@ -128,3 +128,37 @@
     @apply font-sans;
   }
 }
+/* Print/PDF Export Styles */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  
+  /* Hide everything except the report */
+  header, .agent-timeline-container, .print\:hidden {
+    display: none !important;
+  }
+
+  /* Make sure the report takes up the full page */
+  #report-container {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Ensure text is black for readability */
+  #report-container * {
+    color: black !important;
+  }
+
+  /* Prevent page breaks inside cards */
+  .card {
+    break-inside: avoid;
+    border: 1px solid #e5e7eb !important;
+    margin-bottom: 24px !important;
+  }
+}

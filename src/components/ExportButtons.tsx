@@ -1,11 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { FileText, FileDown, Loader2, Download } from 'lucide-react';
+import { FileText, FileDown, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { saveAs } from 'file-saver';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
+import { Packer, Document, Paragraph, HeadingLevel, TextRun } from 'docx';
 
 import { useReportStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
@@ -13,7 +12,6 @@ import { Button } from '@/components/ui/button';
 export function ExportButtons() {
   const report = useReportStore((state) => state.report);
   const [isExportingDocx, setIsExportingDocx] = useState(false);
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   if (!report) return null;
 
@@ -30,7 +28,6 @@ export function ExportButtons() {
 
       const data = await response.json();
       
-      // Convert base64 back to blob
       const byteCharacters = atob(data.base64);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
@@ -47,65 +44,18 @@ export function ExportButtons() {
     }
   };
 
-  const exportPdf = async () => {
-    setIsExportingPdf(true);
-    try {
-      // Find the report container
-      const element = document.getElementById('report-container');
-      if (!element) return;
-
-      // Make it briefly wider/styled for PDF specifically to ensure good layout
-      const originalClassNode = element.className;
-      element.classList.add('pdf-rendering-mode', 'bg-white', 'text-black', 'w-[1000px]', 'p-8');
-      
-      // Small delay to let styles apply
-      await new Promise(r => setTimeout(r, 100));
-
-      const canvas = await html2canvas(element, {
-        scale: 2, // higher resolution
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      });
-
-      // Restore original
-      element.className = originalClassNode;
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      
-      // Calculate layout for A4 PDF
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      
-      let heightLeft = pdfHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
-      heightLeft -= pdf.internal.pageSize.getHeight();
-
-      while (heightLeft >= 0) {
-        position = heightLeft - pdfHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
-        heightLeft -= pdf.internal.pageSize.getHeight();
-      }
-
-      pdf.save(`Strategic-Plan-${Date.now()}.pdf`);
-    } catch (error) {
-      console.error('Failed to export PDF:', error);
-    } finally {
-      setIsExportingPdf(false);
-    }
+  const exportPdf = () => {
+    // Triggers the browser's native, high-quality "Save as PDF" dialog
+    window.print();
   };
 
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-3 print:hidden">
       <Button 
         variant="outline" 
         size="sm" 
         onClick={exportDocx} 
-        disabled={isExportingDocx || isExportingPdf}
+        disabled={isExportingDocx}
         className="gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary bg-background/50 shadow-sm"
       >
         {isExportingDocx ? (
@@ -120,14 +70,10 @@ export function ExportButtons() {
         variant="outline" 
         size="sm" 
         onClick={exportPdf} 
-        disabled={isExportingPdf || isExportingDocx}
+        disabled={isExportingDocx}
         className="gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary bg-background/50 shadow-sm"
       >
-        {isExportingPdf ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <FileDown className="w-4 h-4 text-rose-500" />
-        )}
+        <FileDown className="w-4 h-4 text-rose-500" />
         Download PDF
       </Button>
     </div>

@@ -1,34 +1,58 @@
 import { getModel } from './config';
 import { InsightOutput, ExecutorOutput } from '../types';
 
-const SYSTEM_PROMPT = `You are an Executive Report Writer and Documentation Specialist. You will receive enriched project data from an Insight Agent. Your job is to transform this into a polished, client-ready report.
+async function processExecutorSection(sectionName: string, content: string, formatRules: string): Promise<string> {
+  const model = getModel();
+  const prompt = `You are an Executive Report Writer. Transform this enriched data into a polished, client-ready markdown report section.
+  
+  Section: ${sectionName}
+  Raw Data:\n${content}
 
-You MUST respond with a JSON object containing these four fields:
-- "problemBreakdown": Transform into a professional executive summary-style section. Start with a compelling opening paragraph. Include well-formatted subsections with headers. Add a "Key Findings" callout box (use blockquote). Include data visualizations described as markdown tables. Use professional business language suitable for C-suite audiences. Minimum 300 words.
-- "stakeholders": Create a comprehensive stakeholder analysis report section. Include a professional stakeholder matrix table, detailed profiles for each key stakeholder group, a RACI-style responsibility table, and communication plan. Use markdown tables extensively. Minimum 300 words.
-- "solutionApproach": Write a detailed solution architecture section. Include a phased approach with clear deliverables, technology stack recommendations in a table, integration points, scalability considerations, and security/compliance notes. Use numbered lists, tables, and sub-headers. Minimum 300 words.
-- "actionPlan": Create a comprehensive execution roadmap. Include a detailed Gantt-style timeline table (Phase | Tasks | Duration | Dependencies | Resources | KPIs), budget breakdown table, risk register table, and success metrics. Use multiple markdown tables. Minimum 300 words.
+  FORMATTING RULES for this section:
+  ${formatRules}
+  - Use ## for main subsection headers, ### for sub-subsections.
+  - Use **bold** for key terms.
+  - Use markdown tables with proper headers for all tabular data.
+  - Make the content feel like a premium consulting report (minimum 300 words).
 
-CRITICAL FORMATTING RULES:
-1. Use ## for main subsection headers within each field
-2. Use ### for sub-subsections
-3. Use **bold** for key terms and important points
-4. Use markdown tables with proper headers for all tabular data
-5. Use > blockquotes for key insights or callouts
-6. Use numbered lists for sequential items and bullet points for non-sequential items
-7. Make the content feel like a premium consulting report`;
+  CRITICAL JSON INSTRUCTIONS:
+  You MUST respond with a valid JSON object containing exactly ONE field: "content".
+  - Ensure ALL newlines inside your string value are strictly escaped as \\n. DO NOT use raw/literal newlines.
+  - Do not include markdown blocks (\`\`\`json).`;
+
+  const result = await model.generateContent(prompt);
+  let text = result.response.text().replace(/```json/gi, '').replace(/```/g, '').trim();
+  
+  try {
+    const parsed = JSON.parse(text);
+    return parsed.content;
+  } catch (error) {
+    console.warn(`Executor Agent Parse Warning [${sectionName}]. Using fallback regex.`);
+    // Robust fallback
+    const match = text.match(/"content"\s*:\s*"([\s\S]*)"/);
+    if (match) return match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    return content; // Ultimate fallback: return raw insight content rather than crashing
+  }
+}
 
 export async function runExecutorAgent(insightOutput: InsightOutput): Promise<ExecutorOutput> {
-  const model = getModel();
+  const pbRules = `Start with a compelling opening paragraph. Include well-formatted subsections. Add a "Key Findings" callout box (use > blockquote).`;
+  const shRules = `Include a professional stakeholder matrix table, detailed profiles, a RACI-style responsibility table, and communication plan.`;
+  const saRules = `Include a phased approach with clear deliverables, tech stack recommendations in a table, integration points, scalability and security notes.`;
+  const apRules = `Include a detailed Gantt-style timeline table (Phase | Tasks | Duration | Dependencies | Resources | KPIs), budget breakdown table, and risk register table.`;
 
-  const result = await model.generateContent([
-    { text: SYSTEM_PROMPT },
-    { text: `Here is the Insight Agent's enriched data to format into a professional report:\n\n${JSON.stringify(insightOutput, null, 2)}` },
+  // Run all 4 sections simultaneously!
+  const [pb, sh, sa, ap] = await Promise.all([
+    processExecutorSection('Problem Breakdown', insightOutput.problemBreakdown, pbRules),
+    processExecutorSection('Stakeholders', insightOutput.stakeholders, shRules),
+    processExecutorSection('Solution Approach', insightOutput.solutionApproach, saRules),
+    processExecutorSection('Action Plan', insightOutput.actionPlan, apRules)
   ]);
 
-  const response = result.response;
-  const text = response.text();
-  const parsed = JSON.parse(text) as ExecutorOutput;
-
-  return parsed;
+  return {
+    problemBreakdown: pb,
+    stakeholders: sh,
+    solutionApproach: sa,
+    actionPlan: ap
+  };
 }

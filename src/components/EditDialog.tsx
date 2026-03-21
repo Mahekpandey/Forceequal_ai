@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useState } from 'react';
-import { Sparkles, ArrowRight, Loader2, Undo2, Ban } from 'lucide-react';
+import { Sparkles, ArrowRight, Loader2, Undo2, Ban, CheckCircle2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -167,7 +168,6 @@ export function EditDialog() {
 
               <TabsContent value="preview" className="h-full m-0 p-6 flex flex-col border-none outline-none overflow-hidden">
                 <div className="flex-1 rounded-lg border border-primary/20 bg-background flex flex-col overflow-hidden relative shadow-inner">
-                  {/* Diff indicator styles could go here for bonus */}
                   <div className="px-3 py-2 bg-primary/10 border-b border-primary/20 text-xs font-semibold text-primary flex items-center gap-2">
                     <Sparkles className="w-3 h-3" />
                     AI Edited Preview

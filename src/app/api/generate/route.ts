@@ -48,8 +48,8 @@ export async function POST(req: Request) {
       output: JSON.stringify(plannerOutput)
     });
 
-    // 2. Insight Agent
-    const insightIndex = addStep('Insight Agent', 'Adding strategic depth and analysis...');
+    // 2. Insight Agent (Now runs 4 tasks in parallel!)
+    const insightIndex = addStep('Insight Agent', 'Adding strategic depth and analysis in parallel...');
     const insightStart = Date.now();
     const insightOutput = await runInsightAgent(plannerOutput);
     updateStep(insightIndex, {
@@ -58,8 +58,8 @@ export async function POST(req: Request) {
       output: JSON.stringify(insightOutput)
     });
 
-    // 3. Executor Agent
-    const executorIndex = addStep('Executor Agent', 'Formatting final professional report...');
+    // 3. Executor Agent (Now runs 4 tasks in parallel!)
+    const executorIndex = addStep('Executor Agent', 'Formatting final professional report in parallel...');
     const executorStart = Date.now();
     const executorOutput = await runExecutorAgent(insightOutput);
     updateStep(executorIndex, {

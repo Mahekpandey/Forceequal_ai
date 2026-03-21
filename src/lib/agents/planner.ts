@@ -3,13 +3,18 @@ import { PlannerOutput } from '../types';
 
 const SYSTEM_PROMPT = `You are a Product Manager and Strategic Planner. Your job is to take a user's problem statement and break it down into a structured, actionable plan.
 
-You MUST respond with a JSON object containing exactly these four fields:
-- "problemBreakdown": A detailed markdown analysis of the problem. Include a clear problem definition, scope, key challenges, and objectives. Use bullet points, sub-headings (##, ###), and bold text for emphasis. Be thorough and insightful.
-- "stakeholders": A detailed markdown section identifying all stakeholders. For each stakeholder, describe their role, interests, pain points, and how they relate to the problem. Use a markdown table where appropriate.
-- "solutionApproach": A high-level markdown outline of the proposed solution approach. Include key components, technology considerations, and strategic direction. Use numbered lists and sub-sections.
-- "actionPlan": A structured markdown action plan with phases, milestones, deliverables, and timelines. Use a markdown table for the timeline. Include dependencies between phases.
+CRITICAL JSON INSTRUCTIONS:
+You MUST respond with a valid JSON object containing exactly these four fields: "problemBreakdown", "stakeholders", "solutionApproach", "actionPlan".
+- Ensure ALL newlines inside your string values are strictly escaped as \\n. DO NOT use raw/literal newlines inside the strings.
+- Do not include markdown blocks (\`\`\`json). Just return the raw JSON.
 
-Make each section substantive (at least 150 words each). Use professional business language. Include markdown formatting like headers, bold, italic, tables, and bullet points for readability.`;
+Content Requirements:
+- "problemBreakdown": Detailed analysis, problem definition, scope, challenges. Use ## headings and bullet points.
+- "stakeholders": Identify all stakeholders, roles, interests. Use a markdown table.
+- "solutionApproach": High-level outline, components, tech considerations.
+- "actionPlan": Structured phases, milestones, timeline table.
+
+Make each section substantive (at least 150 words each). Use professional business language.`;
 
 export async function runPlannerAgent(problemStatement: string): Promise<PlannerOutput> {
   const model = getModel();
@@ -19,9 +24,14 @@ export async function runPlannerAgent(problemStatement: string): Promise<Planner
     { text: `Problem Statement: ${problemStatement}` },
   ]);
 
-  const response = result.response;
-  const text = response.text();
-  const parsed = JSON.parse(text) as PlannerOutput;
+  let text = result.response.text();
+  // Strip markdown backticks if the model ignored the instruction
+  text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
 
-  return parsed;
+  try {
+    return JSON.parse(text) as PlannerOutput;
+  } catch (error) {
+    console.error("Planner Agent JSON Error:", error);
+    throw new Error("Planner Agent failed to return valid JSON.");
+  }
 }
