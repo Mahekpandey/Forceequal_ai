@@ -5,15 +5,23 @@ import { runExecutorAgent } from '@/lib/agents/executor';
 import { getCached, setCache, hashInput } from '@/lib/agents/config';
 import { Report, GenerateRequest, GenerateResponse, AgentStep } from '@/lib/types';
 
-// THE MAGIC LINE: This forces Vercel to use the Edge Network, bypassing the 10s Node.js timeout limit!
-export const runtime = 'edge';
+// Force Vercel Node.js Serverless to allow 60 seconds. DO NOT use 'edge' here.
+export const maxDuration = 60; 
+export const dynamic = 'force-dynamic';
 
-// Simple in-memory rate limiter based on IP
 const rateLimitCache = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW = 1000 * 60 * 60; // 1 hour
 
 export async function POST(req: Request) {
   try {
+    // Failsafe check: If API key is totally missing, return immediate error instead of 504 hang
+    if (!process.env.GEMINI_API_KEY) {
+      return NextResponse.json(
+        { error: 'CRITICAL: GEMINI_API_KEY is missing in Vercel Environment Variables!' },
+        { status: 500 }
+      );
+    }
+
     const { problemStatement } = (await req.json()) as GenerateRequest;
 
     if (!problemStatement || problemStatement.trim().length === 0) {
@@ -23,7 +31,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Rate Limiting (5 requests per IP per hour)
     const ip = req.headers.get('x-forwarded-for') || 'anonymous';
     const now = Date.now();
     const rl = rateLimitCache.get(ip);
@@ -43,7 +50,6 @@ export async function POST(req: Request) {
       rateLimitCache.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
     }
 
-    // Check cache
     const cacheKey = hashInput(problemStatement);
     const cachedResponse = getCached<GenerateResponse>(cacheKey);
     if (cachedResponse) {
@@ -92,7 +98,6 @@ export async function POST(req: Request) {
       output: JSON.stringify(executorOutput)
     });
 
-    // Finalize report object
     const report: Report = {
       id: crypto.randomUUID(),
       problemStatement,
@@ -132,15 +137,13 @@ export async function POST(req: Request) {
     };
 
     const response: GenerateResponse = { report, agentSteps: steps };
-    
-    // Save to memory cache
     setCache(cacheKey, response);
 
     return NextResponse.json(response);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Generation pipeline error:', error);
     return NextResponse.json(
-      { error: 'Failed to generate report' },
+      { error: error?.message || 'Failed to generate report' },
       { status: 500 }
     );
   }

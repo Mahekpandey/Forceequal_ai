@@ -1,11 +1,10 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-export const maxDuration = 60;
 
 // Initialize the Gemini client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// Model configuration - CHANGED TO FLASH TO PREVENT VERCEL 504 TIMEOUT
-export const MODEL_NAME = 'gemini-2.0-flash';
+// Use 1.5-flash! It is the most stable and fastest model for Vercel deployments.
+export const MODEL_NAME = 'gemini-1.5-flash';
 
 export function getModel() {
   return genAI.getGenerativeModel({
