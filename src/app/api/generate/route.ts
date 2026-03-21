@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 import { runPlannerAgent } from '@/lib/agents/planner';
 import { runInsightAgent } from '@/lib/agents/insight';
 import { runExecutorAgent } from '@/lib/agents/executor';
 import { getCached, setCache, hashInput } from '@/lib/agents/config';
 import { Report, GenerateRequest, GenerateResponse, AgentStep } from '@/lib/types';
 
+// Force Vercel to allow up to 60 seconds (Hobby tier limit)
+export const maxDuration = 60; 
+// Tell Vercel to NOT use static generation for this route
+export const dynamic = 'force-dynamic';
+
 // Simple in-memory rate limiter based on IP
 const rateLimitCache = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW = 1000 * 60 * 60; // 1 hour
-
-export const maxDuration = 60; // Set max duration for Vercel
 
 export async function POST(req: Request) {
   try {
@@ -53,7 +54,6 @@ export async function POST(req: Request) {
 
     const steps: AgentStep[] = [];
 
-    // Transform helper
     const addStep = (name: string, desc: string) => {
       const step: AgentStep = { agentName: name, status: 'running', description: desc };
       steps.push(step);
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
       output: JSON.stringify(plannerOutput)
     });
 
-    // 2. Insight Agent (Consolidated into 1 request)
+    // 2. Insight Agent
     const insightIndex = addStep('Insight Agent', 'Adding strategic depth and analysis...');
     const insightStart = Date.now();
     const insightOutput = await runInsightAgent(plannerOutput);
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
       output: JSON.stringify(insightOutput)
     });
 
-    // 3. Executor Agent (Consolidated into 1 request)
+    // 3. Executor Agent
     const executorIndex = addStep('Executor Agent', 'Formatting final professional report...');
     const executorStart = Date.now();
     const executorOutput = await runExecutorAgent(insightOutput);
@@ -135,33 +135,11 @@ export async function POST(req: Request) {
 
     const response: GenerateResponse = { report, agentSteps: steps };
     
-    // Save to cache
+    // Save to memory cache
     setCache(cacheKey, response);
 
-    // Save to local outputs folder as OP1, OP2, etc.
-    try {
-      const outputsDir = path.join(process.cwd(), 'outputs');
-      if (!fs.existsSync(outputsDir)) {
-        fs.mkdirSync(outputsDir, { recursive: true });
-      }
-
-      // Count existing OP files to determine next number
-      const files = fs.readdirSync(outputsDir);
-      const opFiles = files.filter(f => f.startsWith('OP') && f.endsWith('.md'));
-      const nextNum = opFiles.length + 1;
-      const fileName = `OP${nextNum}.md`;
-
-      // Format the markdown content
-      let mdContent = `# Strategic Plan \n**Problem Statement:** ${problemStatement}\n\n`;
-      report.sections.forEach(sec => {
-        mdContent += `---\n\n## ${sec.title}\n\n${sec.content}\n\n`;
-      });
-
-      fs.writeFileSync(path.join(outputsDir, fileName), mdContent, 'utf-8');
-      console.log(`Saved local output: ${fileName}`);
-    } catch (fsError) {
-      console.error('Failed to save local output:', fsError);
-    }
+    // REMOVED fs.writeFileSync because Vercel is a read-only serverless environment.
+    // Writing to the local disk causes the 504 timeout!
 
     return NextResponse.json(response);
   } catch (error) {
