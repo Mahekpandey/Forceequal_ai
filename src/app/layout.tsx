@@ -11,7 +11,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en"> {/* Removed className="dark" */}
+    <html lang="en">
       <body className="min-h-screen bg-[#F8FAFC] text-slate-900 antialiased selection:bg-primary/20">
         <div className="relative flex min-h-screen flex-col">
           {/* Header */}
@@ -21,7 +21,7 @@ export default function RootLayout({
                 <div className="size-8 rounded-lg bg-primary/10 flex justify-center items-center text-primary ring-1 ring-primary/20">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L12 3Z"/></svg>
                 </div>
-                ForceEqual<span className="text-primary tracking-tighter ml-[-2px]">.AI</span>
+                Mahek.AI<span className="text-primary tracking-tighter ml-[-2px]"></span>
               </div>
             </div>
           </header>

@@ -44,7 +44,12 @@ export function getCached<T>(key: string): T | null {
   return entry.data as T;
 }
 
+const MAX_CACHE_SIZE = 50;
 export function setCache(key: string, data: unknown): void {
+  if (cache.size >= MAX_CACHE_SIZE) {
+    const firstKey = cache.keys().next().value;
+    if (firstKey) cache.delete(firstKey);
+  }
   cache.set(key, { data, timestamp: Date.now() });
 }
 
@@ -56,4 +61,46 @@ export function hashInput(input: string): string {
     hash |= 0;
   }
   return `cache_${hash}`;
+}
+
+export function cleanJSON(jsonContent: string): string {
+  let text = jsonContent.trim();
+  if (text.startsWith('```json')) text = text.substring(7);
+  else if (text.startsWith('```')) text = text.substring(3);
+  if (text.endsWith('```')) text = text.slice(0, -3);
+  text = text.trim();
+
+  let result = '';
+  let inString = false;
+  let isEscaped = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    
+    if (char === '\\') {
+      isEscaped = !isEscaped;
+      result += char;
+      continue;
+    }
+
+    if (char === '"' && !isEscaped) {
+      inString = !inString;
+      result += char;
+      continue;
+    }
+
+    if (inString && char === '\n') {
+      result += '\\n';
+    } else if (inString && char === '\r') {
+      // Ignore \r
+    } else if (inString && char === '\t') {
+      result += '\\t';
+    } else {
+      result += char;
+    }
+
+    isEscaped = false;
+  }
+  
+  return result;
 }

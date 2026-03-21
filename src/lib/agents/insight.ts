@@ -1,54 +1,46 @@
-import { getModel } from './config';
+import { getModel, cleanJSON } from './config';
 import { PlannerOutput, InsightOutput } from '../types';
 
-async function processInsightSection(sectionName: string, content: string, instructions: string): Promise<string> {
-  const model = getModel();
-  const prompt = `You are a Business Strategist and Research Analyst. ENRICH and DEEPEN the following section.
-  
-  Section: ${sectionName}
-  Original Content:\n${content}
-
-  Instructions for this section: ${instructions}
-  EXPAND upon the input, keeping original points but adding strategic depth. Be at least 250 words.
-
-  CRITICAL JSON INSTRUCTIONS:
-  You MUST respond with a valid JSON object containing exactly ONE field: "content".
-  - Ensure ALL newlines inside your string value are strictly escaped as \\n. DO NOT use raw/literal newlines.
-  - Do not include markdown blocks (\`\`\`json).`;
-
-  const result = await model.generateContent(prompt);
-  let text = result.response.text().replace(/```json/gi, '').replace(/```/g, '').trim();
-  
-  try {
-    const parsed = JSON.parse(text);
-    return parsed.content;
-  } catch (error) {
-    console.warn(`Insight Agent Parse Warning [${sectionName}]. Using fallback regex.`);
-    // Robust fallback if JSON.parse fails due to unescaped characters
-    const match = text.match(/"content"\s*:\s*"([\s\S]*)"/);
-    if (match) return match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
-    return content; // Ultimate fallback: return original content rather than crashing
-  }
-}
-
 export async function runInsightAgent(plannerOutput: PlannerOutput): Promise<InsightOutput> {
-  const pbInstructions = "Add market context, industry trends, competitive landscape analysis, and potential risks. Add a 'Key Risks' subsection with a markdown table (Risk | Impact | Mitigation).";
-  const shInstructions = "Enrich with power/interest grid analysis, communication strategies, and potential conflicts of interest. Add a stakeholder priority matrix as a markdown table.";
-  const saInstructions = "Add technical feasibility assessment, resource requirements, alternative approaches (with pros/cons table).";
-  const apInstructions = "Add detailed resource allocation, budget considerations, KPIs, and go/no-go criteria. Enhance the timeline table.";
+  const model = getModel();
+  
+  const prompt = `You are a Business Strategist and Research Analyst. ENRICH and DEEPEN the following strategic outline.
+  
+Please expand upon all four sections simultaneously. Keep original points but add strategic depth. Make each section robust (at least 200 words).
 
-  // Run all 4 sections simultaneously!
-  const [pb, sh, sa, ap] = await Promise.all([
-    processInsightSection('Problem Breakdown', plannerOutput.problemBreakdown, pbInstructions),
-    processInsightSection('Stakeholders', plannerOutput.stakeholders, shInstructions),
-    processInsightSection('Solution Approach', plannerOutput.solutionApproach, saInstructions),
-    processInsightSection('Action Plan', plannerOutput.actionPlan, apInstructions)
-  ]);
+[1. Problem Breakdown]
+Original: ${plannerOutput.problemBreakdown}
+Instructions: Add market context, industry trends, competitive landscape analysis, and potential risks. Add a 'Key Risks' subsection with a markdown table.
 
-  return {
-    problemBreakdown: pb,
-    stakeholders: sh,
-    solutionApproach: sa,
-    actionPlan: ap
-  };
+[2. Stakeholders]
+Original: ${plannerOutput.stakeholders}
+Instructions: Enrich with power/interest grid analysis. Add a stakeholder priority matrix as a markdown table and a Mermaid.js relationship graph.
+
+[3. Solution Approach]
+Original: ${plannerOutput.solutionApproach}
+Instructions: Add technical feasibility assessment, resource requirements, alternative approaches (with pros/cons table), and a detailed Mermaid.js architecture diagram.
+
+[4. Action Plan]
+Original: ${plannerOutput.actionPlan}
+Instructions: Add detailed resource allocation, budget considerations, KPIs. Enhance the timeline with a detailed Mermaid.js Gantt chart.
+
+CRITICAL MERMAID INSTRUCTION: You MUST wrap all Mermaid diagrams exactly in \\\`\\\`\\\`mermaid and \\\`\\\`\\\` tags. Do NOT start the diagram text with the word 'mermaid'. Start directly with 'graph', 'pie', or 'gantt'.
+
+CRITICAL JSON INSTRUCTIONS:
+- You MUST return ONLY a valid JSON object.
+- Keys must be exactly: "problemBreakdown", "stakeholders", "solutionApproach", "actionPlan".
+- Values must be strings containing the markdown content.
+- Escape ALL newlines inside string values strictly as \\n.
+- Escape ALL double quotes inside string values strictly as \\".
+- Do not include markdown blocks (\`\`\`json).`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    let text = cleanJSON(result.response.text());
+    return JSON.parse(text) as InsightOutput;
+  } catch (error) {
+    console.error("Insight Agent Generate/Parse Error:", error);
+    // Ultimate fallback: return original content rather than crashing the pipeline
+    return plannerOutput; 
+  }
 }

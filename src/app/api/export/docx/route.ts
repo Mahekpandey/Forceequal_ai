@@ -2,15 +2,14 @@ import { NextResponse } from 'next/server';
 import { 
   Document, Paragraph, TextRun, HeadingLevel, Packer, 
   BorderStyle, Table, TableRow, TableCell, WidthType, 
-  ShadingType, AlignmentType 
+  ShadingType, AlignmentType, TableLayoutType, ImageRun
 } from 'docx';
 import { ExportRequest, ReportSection } from '@/lib/types';
 import { marked } from 'marked';
 
 export const maxDuration = 30;
 
-// Helper to parse inline markdown and aggressively strip asterisks
-const renderInlineTokens = (tokens: any[] = []) => {
+const renderInlineTokens = (tokens: any[] = [], colorOverride?: string, forceBold: boolean = false) => {
   return tokens.map((t: any) => {
     const isBold = t.type === 'strong';
     const isItalic = t.type === 'em';
@@ -22,7 +21,6 @@ const renderInlineTokens = (tokens: any[] = []) => {
        content = t.text || t.raw || "";
     }
 
-    // Aggressively clean leftover markdown and HTML entities
     content = content
       .replace(/\*\*/g, '') 
       .replace(/\*/g, '')   
@@ -32,10 +30,10 @@ const renderInlineTokens = (tokens: any[] = []) => {
     
     return new TextRun({
       text: content,
-      bold: isBold,
+      bold: forceBold || isBold,
       italics: isItalic,
       size: 22,
-      color: isBold ? "000000" : "333333", // Black for bold, dark gray for normal
+      color: colorOverride || (isBold ? "000000" : "333333"), 
     });
   });
 };
@@ -54,7 +52,6 @@ export async function POST(req: Request) {
     const createDocxContent = (sections: ReportSection[]) => {
       const docChildren: any[] = [];
       
-      // Title Page
       docChildren.push(
         new Paragraph({
           text: 'Strategic Execution Plan',
@@ -90,9 +87,7 @@ export async function POST(req: Request) {
         new Paragraph({ pageBreakBefore: true })
       );
 
-      // Process each section
       sections.forEach((section) => {
-        // Section Title
         docChildren.push(
           new Paragraph({
             text: section.title,
@@ -101,8 +96,6 @@ export async function POST(req: Request) {
           })
         );
         
-        // --- 100% FOOLPROOF TABLE FIX ---
-        // Manually parse line by line to guarantee blank lines around tables
         const lines = section.content.split('\n');
         const fixedLines = [];
         let inTable = false;
@@ -112,22 +105,47 @@ export async function POST(req: Request) {
           const isTableLine = line.startsWith('|');
           
           if (isTableLine && !inTable) {
-            fixedLines.push(''); // Force a blank line BEFORE the table starts
+            fixedLines.push(''); 
             inTable = true;
           } else if (!isTableLine && inTable) {
-            fixedLines.push(''); // Force a blank line AFTER the table ends
+            fixedLines.push(''); 
             inTable = false;
           }
           fixedLines.push(lines[i]);
         }
 
         const cleanMarkdown = fixedLines.join('\n');
-        
-        // Parse the cleaned markdown with GFM enabled to read tables
         const tokens = marked.lexer(cleanMarkdown, { gfm: true });
         
+        let diagramIndex = 0;
+        
         tokens.forEach((token: any) => {
-          if (token.type === 'heading') {
+          if (token.type === 'code' && token.lang === 'mermaid') {
+             const imgArr = (section as any).diagramImages;
+             if (imgArr && imgArr[diagramIndex]) {
+               const imgData = imgArr[diagramIndex];
+               const base64Data = imgData.base64.split('base64,')[1];
+               
+               const targetWidth = Math.min(600, imgData.width);
+               const targetHeight = (imgData.height / imgData.width) * targetWidth;
+
+               docChildren.push(
+                 new Paragraph({
+                   children: [
+                     new ImageRun({
+                       data: Buffer.from(base64Data, "base64"),
+                       transformation: { width: targetWidth, height: targetHeight },
+                       type: "png"
+                     })
+                   ],
+                   alignment: AlignmentType.CENTER,
+                   spacing: { before: 400, after: 400 }
+                 })
+               );
+             }
+             diagramIndex++;
+          }
+          else if (token.type === 'heading') {
             const hLevel = 
               token.depth === 1 ? HeadingLevel.HEADING_1 :
               token.depth === 2 ? HeadingLevel.HEADING_2 :
@@ -160,7 +178,7 @@ export async function POST(req: Request) {
                 })
               );
             });
-            docChildren.push(new Paragraph({ spacing: { after: 100 } })); // spacer
+            docChildren.push(new Paragraph({ spacing: { after: 100 } })); 
           } 
           else if (token.type === 'blockquote') {
             docChildren.push(
@@ -176,26 +194,20 @@ export async function POST(req: Request) {
           else if (token.type === 'table') {
             const tableRows: TableRow[] = [];
             
-            // 1. Table Header (Colored Background)
             const headerCells = token.header.map((cell: any) => {
               return new TableCell({
                 children: [
                   new Paragraph({ 
-                    children: renderInlineTokens(cell.tokens).map(tr => {
-                      tr.color = "FFFFFF"; // White text for header
-                      tr.bold = true;
-                      return tr;
-                    }), 
+                    children: renderInlineTokens(cell.tokens, "FFFFFF", true), 
                     alignment: AlignmentType.CENTER 
                   })
                 ],
-                shading: { fill: "7C3AED", type: ShadingType.CLEAR, color: "auto" }, // Primary Purple
+                shading: { fill: "7C3AED", type: ShadingType.CLEAR, color: "auto" }, 
                 margins: { top: 100, bottom: 100, left: 100, right: 100 }
               });
             });
             tableRows.push(new TableRow({ children: headerCells, tableHeader: true }));
 
-            // 2. Table Body Rows
             token.rows.forEach((row: any) => {
               const rowCells = row.map((cell: any) => {
                 return new TableCell({
@@ -206,10 +218,12 @@ export async function POST(req: Request) {
               tableRows.push(new TableRow({ children: rowCells }));
             });
 
+            // ADDED AUTOFIT LAYOUT to stop tables getting cut off
             docChildren.push(
               new Table({
                 rows: tableRows,
                 width: { size: 100, type: WidthType.PERCENTAGE },
+                layout: TableLayoutType.AUTOFIT, 
                 borders: {
                   top: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" },
                   bottom: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" },
@@ -220,11 +234,10 @@ export async function POST(req: Request) {
                 }
               })
             );
-            docChildren.push(new Paragraph({ spacing: { after: 300 } })); // spacer after table
+            docChildren.push(new Paragraph({ spacing: { after: 300 } })); 
           }
         });
         
-        // Add a line break after each full section
         docChildren.push(new Paragraph({ text: '', spacing: { after: 400 } }));
       });
 
@@ -237,7 +250,17 @@ export async function POST(req: Request) {
       description: 'Strategic plan report generated by multi-agent pipeline',
       sections: [
         {
-          properties: {},
+          // REDUCED MARGINS to give tables more horizontal room in Word
+          properties: {
+            page: {
+              margin: {
+                top: 1000,
+                right: 800,
+                bottom: 1000,
+                left: 800,
+              },
+            },
+          },
           children: createDocxContent(report.sections),
         },
       ],

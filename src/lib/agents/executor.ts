@@ -1,58 +1,50 @@
-import { getModel } from './config';
+import { getModel, cleanJSON } from './config';
 import { InsightOutput, ExecutorOutput } from '../types';
 
-async function processExecutorSection(sectionName: string, content: string, formatRules: string): Promise<string> {
-  const model = getModel();
-  const prompt = `You are an Executive Report Writer. Transform this enriched data into a polished, client-ready markdown report section.
-  
-  Section: ${sectionName}
-  Raw Data:\n${content}
-
-  FORMATTING RULES for this section:
-  ${formatRules}
-  - Use ## for main subsection headers, ### for sub-subsections.
-  - Use **bold** for key terms.
-  - Use markdown tables with proper headers for all tabular data.
-  - Make the content feel like a premium consulting report (minimum 300 words).
-
-  CRITICAL JSON INSTRUCTIONS:
-  You MUST respond with a valid JSON object containing exactly ONE field: "content".
-  - Ensure ALL newlines inside your string value are strictly escaped as \\n. DO NOT use raw/literal newlines.
-  - Do not include markdown blocks (\`\`\`json).`;
-
-  const result = await model.generateContent(prompt);
-  let text = result.response.text().replace(/```json/gi, '').replace(/```/g, '').trim();
-  
-  try {
-    const parsed = JSON.parse(text);
-    return parsed.content;
-  } catch (error) {
-    console.warn(`Executor Agent Parse Warning [${sectionName}]. Using fallback regex.`);
-    // Robust fallback
-    const match = text.match(/"content"\s*:\s*"([\s\S]*)"/);
-    if (match) return match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
-    return content; // Ultimate fallback: return raw insight content rather than crashing
-  }
-}
-
 export async function runExecutorAgent(insightOutput: InsightOutput): Promise<ExecutorOutput> {
-  const pbRules = `Start with a compelling opening paragraph. Include well-formatted subsections. Add a "Key Findings" callout box (use > blockquote).`;
-  const shRules = `Include a professional stakeholder matrix table, detailed profiles, a RACI-style responsibility table, and communication plan.`;
-  const saRules = `Include a phased approach with clear deliverables, tech stack recommendations in a table, integration points, scalability and security notes.`;
-  const apRules = `Include a detailed Gantt-style timeline table (Phase | Tasks | Duration | Dependencies | Resources | KPIs), budget breakdown table, and risk register table.`;
+  const model = getModel();
+  
+  const prompt = `You are an Executive Report Writer. Transform this enriched data into four highly polished, client-ready markdown report sections.
+  
+FORMATTING RULES FOR ALL SECTIONS:
+- Use ## for main subsection headers, ### for sub-subsections.
+- Use **bold** for key terms.
+- Use markdown tables with proper headers for all tabular data.
+- MUST include at least one Mermaid.js diagram per section.
+- CRITICAL: You MUST wrap all Mermaid diagrams exactly in \\\`\\\`\\\`mermaid and \\\`\\\`\\\` tags. Do NOT start the diagram text with the word 'mermaid'. Start directly with 'graph', 'pie', or 'gantt'.
+- Make the content feel like a premium consulting report (minimum 250 words per section).
 
-  // Run all 4 sections simultaneously!
-  const [pb, sh, sa, ap] = await Promise.all([
-    processExecutorSection('Problem Breakdown', insightOutput.problemBreakdown, pbRules),
-    processExecutorSection('Stakeholders', insightOutput.stakeholders, shRules),
-    processExecutorSection('Solution Approach', insightOutput.solutionApproach, saRules),
-    processExecutorSection('Action Plan', insightOutput.actionPlan, apRules)
-  ]);
+[1. Problem Breakdown]
+Raw Data: ${insightOutput.problemBreakdown}
+Specific Rules: Start with a compelling opening paragraph. Include well-formatted subsections. Add a "Key Findings" callout box (use > blockquote). Include a Mermaid.js pie chart of problem distribution.
 
-  return {
-    problemBreakdown: pb,
-    stakeholders: sh,
-    solutionApproach: sa,
-    actionPlan: ap
-  };
+[2. Stakeholders]
+Raw Data: ${insightOutput.stakeholders}
+Specific Rules: Include a professional stakeholder matrix table, detailed profiles, and a Mermaid.js relationship or mindmap graph.
+
+[3. Solution Approach]
+Raw Data: ${insightOutput.solutionApproach}
+Specific Rules: Include a phased approach, tech stack recommendations in a table, and a detailed Mermaid.js architecture flowchart.
+
+[4. Action Plan]
+Raw Data: ${insightOutput.actionPlan}
+Specific Rules: Include a detailed Gantt-style timeline table, budget breakdown, and a complex Mermaid.js Gantt chart visualizing the schedule.
+
+CRITICAL JSON INSTRUCTIONS:
+- You MUST return ONLY a valid JSON object.
+- Keys must be exactly: "problemBreakdown", "stakeholders", "solutionApproach", "actionPlan".
+- Values must be strings containing the markdown content.
+- Escape ALL newlines inside string values strictly as \\n.
+- Escape ALL double quotes inside string values strictly as \\".
+- Do not include markdown blocks (\`\`\`json).`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    let text = cleanJSON(result.response.text());
+    return JSON.parse(text) as ExecutorOutput;
+  } catch (error) {
+    console.error("Executor Agent Generate/Parse Error:", error);
+    // Ultimate fallback: return insight content rather than crashing the pipeline
+    return insightOutput; 
+  }
 }
