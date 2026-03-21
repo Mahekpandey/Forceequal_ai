@@ -1,10 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+export const maxDuration = 60;
 
 // Initialize the Gemini client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// Model configuration
-export const MODEL_NAME = 'gemini-3-pro-preview';
+// Model configuration - CHANGED TO FLASH TO PREVENT VERCEL 504 TIMEOUT
+export const MODEL_NAME = 'gemini-2.5-flash';
 
 export function getModel() {
   return genAI.getGenerativeModel({
