@@ -1,8 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { useState } from 'react';
-import { Sparkles, ArrowRight, Loader2, Undo2, Ban, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Sparkles, ArrowRight, Loader2, Undo2, CheckCircle2, History } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -18,7 +18,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useReportStore } from '@/lib/store';
 
 const QUICK_ACTIONS = [
@@ -46,6 +45,9 @@ export function EditDialog() {
   const [activeTab, setActiveTab] = useState('edit');
 
   const section = report?.sections.find((s) => s.id === editingSection);
+  
+  // Get history for this specific section, newest first
+  const sectionHistory = report?.versions.filter(v => v.sectionId === editingSection).reverse() || [];
 
   const handleClose = () => {
     if (!isProcessing) {
@@ -101,12 +103,18 @@ export function EditDialog() {
     handleClose();
   };
 
+  const handleRestoreVersion = (content: string) => {
+    if (!section) return;
+    updateSection(section.id, content);
+    handleClose();
+  };
+
   if (!section) return null;
 
   return (
     <Dialog open={!!editingSection} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="sm:max-w-[800px] h-[85vh] flex flex-col p-0 overflow-hidden bg-background/95 backdrop-blur-xl border-border/50">
-        <DialogHeader className="px-6 py-4 border-b border-border/30 bg-muted/10 shrink-0">
+      <DialogContent className="sm:max-w-[850px] h-[85vh] flex flex-col p-0 overflow-hidden bg-background/95 backdrop-blur-xl border-border/50">
+        <DialogHeader className="px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
           <DialogTitle className="flex items-center gap-2 text-xl text-slate-900">
             <Sparkles className="w-5 h-5 text-primary" />
             AI Editor: {section.title}
@@ -114,13 +122,13 @@ export function EditDialog() {
           <DialogDescription className="text-slate-600">
             {highlightedText 
               ? "Instruct the AI how to modify your selected text." 
-              : "Instruct the AI how to modify this entire section."}
+              : "Instruct the AI how to modify this entire section, or restore a previous version."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-hidden flex flex-col bg-white">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-            <div className="px-6 pt-4 shrink-0 flex justify-between items-center">
+            <div className="px-6 pt-4 shrink-0">
               <TabsList className="bg-slate-100 w-full justify-start rounded-lg p-1">
                 <TabsTrigger value="edit" className="flex-1 rounded-md data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm">
                   1. Instruct AI
@@ -128,19 +136,23 @@ export function EditDialog() {
                 <TabsTrigger value="preview" disabled={!previewContent} className="flex-1 rounded-md data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm">
                   2. Review & Apply
                 </TabsTrigger>
+                <TabsTrigger value="history" className="flex-1 rounded-md data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm">
+                  <History className="w-4 h-4 mr-2" /> 3. Version History
+                </TabsTrigger>
               </TabsList>
             </div>
 
             <div className="flex-1 overflow-hidden relative">
-              <TabsContent value="edit" className="h-full m-0 p-6 flex flex-col gap-4 border-none outline-none overflow-y-auto">
-                <div className="space-y-3">
-                  
+              
+              {/* TAB 1: EDIT */}
+              <TabsContent value="edit" className="h-full m-0 p-6 flex flex-col gap-4 border-none outline-none">
+                <div className="space-y-3 shrink-0">
                   {highlightedText && (
                     <div className="bg-primary/5 border border-primary/20 rounded-md p-3 mb-2 shadow-sm">
                       <p className="text-xs font-semibold text-primary uppercase mb-1 flex items-center gap-1">
                         <Sparkles className="w-3 h-3"/> Target Edit
                       </p>
-                      <p className="text-sm italic text-slate-700">"{highlightedText}"</p>
+                      <p className="text-sm italic text-slate-700 line-clamp-3">"{highlightedText}"</p>
                     </div>
                   )}
 
@@ -149,15 +161,15 @@ export function EditDialog() {
                     placeholder="e.g., Rewrite this in a more professional tone and add specific technical examples..."
                     value={instruction}
                     onChange={(e) => setInstruction(e.target.value)}
-                    className="min-h-[120px] resize-none bg-white focus-visible:ring-primary/30 border-slate-200"
+                    className="min-h-[100px] resize-none bg-white focus-visible:ring-primary/30 border-slate-200"
                   />
                   
-                  <div className="flex flex-wrap gap-2 pt-2">
+                  <div className="flex flex-wrap gap-2 pt-1">
                     {QUICK_ACTIONS.map((action) => (
                       <Badge 
                         key={action}
                         variant="secondary"
-                        className="cursor-pointer bg-slate-100 text-slate-600 hover:bg-slate-200 font-normal border-transparent transition-colors py-1.5"
+                        className="cursor-pointer bg-slate-100 text-slate-600 hover:bg-slate-200 font-normal border-transparent transition-colors py-1"
                         onClick={() => setInstruction(action)}
                       >
                         {action}
@@ -166,41 +178,109 @@ export function EditDialog() {
                   </div>
                 </div>
 
-                <div className="flex-1 min-h-[200px] rounded-lg border border-slate-200 bg-slate-50 flex flex-col overflow-hidden mt-2">
-                  <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 text-xs font-medium text-slate-500 flex justify-between">
+                <div className="flex-1 min-h-0 rounded-lg border border-slate-200 bg-slate-50 flex flex-col overflow-hidden">
+                  <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 text-xs font-medium text-slate-500 flex justify-between shrink-0">
                     <span>Current Content Reference</span>
                     <span>Read Only</span>
                   </div>
-                  <ScrollArea className="flex-1 p-4 prose prose-slate prose-sm max-w-none">
+                  {/* FOOLPROOF SCROLLING FIX: native overflow-y-auto instead of ScrollArea */}
+                  <div className="flex-1 overflow-y-auto p-4 prose prose-slate prose-sm max-w-none">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{section.content}</ReactMarkdown>
-                  </ScrollArea>
+                  </div>
                 </div>
               </TabsContent>
 
-              <TabsContent value="preview" className="h-full m-0 p-6 flex flex-col border-none outline-none overflow-hidden">
-                <div className="flex-1 rounded-lg border border-primary/20 bg-white flex flex-col overflow-hidden relative shadow-inner">
-                  <div className="px-3 py-2 bg-primary/5 border-b border-primary/10 text-xs font-semibold text-primary flex items-center gap-2">
+              {/* TAB 2: PREVIEW */}
+              <TabsContent value="preview" className="h-full m-0 p-6 flex flex-col border-none outline-none">
+                <div className="flex-1 min-h-0 rounded-lg border border-primary/20 bg-white flex flex-col overflow-hidden shadow-inner">
+                  <div className="px-3 py-2 bg-primary/5 border-b border-primary/10 text-xs font-semibold text-primary flex items-center gap-2 shrink-0">
                     <Sparkles className="w-3 h-3" />
                     AI Edited Preview
                   </div>
-                  <ScrollArea className="flex-1 p-6 prose prose-slate max-w-none bg-gradient-to-b from-transparent to-primary/5">
+                  {/* FOOLPROOF SCROLLING FIX */}
+                  <div className="flex-1 overflow-y-auto p-6 prose prose-slate max-w-none bg-gradient-to-b from-transparent to-primary/5">
                     {previewContent && (
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{previewContent}</ReactMarkdown>
                     )}
-                  </ScrollArea>
+                  </div>
                 </div>
               </TabsContent>
+
+              {/* TAB 3: HISTORY */}
+              <TabsContent value="history" className="h-full m-0 p-6 flex flex-col border-none outline-none">
+                <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                  {sectionHistory.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                      <History className="w-8 h-8 mb-2 opacity-50" />
+                      <p>No edits have been made to this section yet.</p>
+                    </div>
+                  ) : (
+                    <>
+                      {sectionHistory.map((version, index) => (
+                        <div key={version.id} className="p-4 border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col gap-3">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <span className="inline-block text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded border border-primary/20 mb-2">
+                                Edit {sectionHistory.length - index}
+                              </span>
+                              <p className="text-sm font-medium text-slate-800 line-clamp-2">
+                                Prompt: "{version.editPrompt}"
+                              </p>
+                            </div>
+                            <span className="text-xs text-slate-400 whitespace-nowrap ml-4">
+                              {new Date(version.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-fit gap-2 border-slate-200 hover:bg-slate-50"
+                            onClick={() => handleRestoreVersion(version.newContent)}
+                          >
+                            <Undo2 className="w-4 h-4" /> Restore this version
+                          </Button>
+                        </div>
+                      ))}
+
+                      {/* Original Version Block */}
+                      <div className="p-4 border border-slate-200 rounded-lg bg-slate-50 flex flex-col gap-3">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <span className="inline-block text-xs font-bold text-slate-600 bg-slate-200 px-2 py-1 rounded border border-slate-300 mb-2">
+                              Original Base
+                            </span>
+                            <p className="text-sm text-slate-600 italic">
+                              The very first generation created by the AI pipeline.
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-fit gap-2 border-slate-300 hover:bg-slate-200"
+                          onClick={() => handleRestoreVersion(sectionHistory[sectionHistory.length - 1].previousContent)}
+                        >
+                          <Undo2 className="w-4 h-4" /> Restore Original Generation
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </TabsContent>
+
             </div>
           </Tabs>
         </div>
 
         <DialogFooter className="px-6 py-4 border-t border-slate-200 bg-slate-50 shrink-0 flex items-center gap-2 sm:justify-between">
           <Button variant="ghost" onClick={handleClose} disabled={isProcessing} className="text-slate-500 hover:text-slate-700">
-            Cancel
+            Close
           </Button>
           
           <div className="flex gap-2">
-            {activeTab === 'preview' ? (
+            {activeTab === 'preview' && (
               <>
                 <Button 
                   variant="outline" 
@@ -213,7 +293,9 @@ export function EditDialog() {
                   Apply Changes <CheckCircle2 className="w-4 h-4 group-hover:text-white transition-colors" />
                 </Button>
               </>
-            ) : (
+            )}
+            
+            {activeTab === 'edit' && (
               <Button 
                 onClick={handleGeneratePreview} 
                 disabled={!instruction.trim() || isProcessing}
