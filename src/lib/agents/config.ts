@@ -5,7 +5,7 @@ export const maxDuration = 60;
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // Model configuration - CHANGED TO FLASH TO PREVENT VERCEL 504 TIMEOUT
-export const MODEL_NAME = 'gemini-2.5-flash';
+export const MODEL_NAME = 'gemini-2.0-flash';
 
 export function getModel() {
   return genAI.getGenerativeModel({

@@ -5,10 +5,8 @@ import { runExecutorAgent } from '@/lib/agents/executor';
 import { getCached, setCache, hashInput } from '@/lib/agents/config';
 import { Report, GenerateRequest, GenerateResponse, AgentStep } from '@/lib/types';
 
-// Force Vercel to allow up to 60 seconds (Hobby tier limit)
-export const maxDuration = 60; 
-// Tell Vercel to NOT use static generation for this route
-export const dynamic = 'force-dynamic';
+// THE MAGIC LINE: This forces Vercel to use the Edge Network, bypassing the 10s Node.js timeout limit!
+export const runtime = 'edge';
 
 // Simple in-memory rate limiter based on IP
 const rateLimitCache = new Map<string, { count: number; resetTime: number }>();
@@ -137,9 +135,6 @@ export async function POST(req: Request) {
     
     // Save to memory cache
     setCache(cacheKey, response);
-
-    // REMOVED fs.writeFileSync because Vercel is a read-only serverless environment.
-    // Writing to the local disk causes the 504 timeout!
 
     return NextResponse.json(response);
   } catch (error) {
