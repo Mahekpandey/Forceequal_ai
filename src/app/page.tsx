@@ -35,7 +35,6 @@ export default function Home() {
     setIsGenerating(true);
     setProblem(query);
     
-    // Initial timeline state
     setAgentSteps([
       { agentName: 'Planner Agent', status: 'pending', description: 'Waiting into queue...' },
       { agentName: 'Insight Agent', status: 'pending', description: 'Waiting into queue...' },
@@ -43,10 +42,6 @@ export default function Home() {
     ]);
 
     try {
-      // In a real app we'd use SSE (Server-Sent Events) to stream the 
-      // timeline steps. For simplicity, we just fetch the whole thing 
-      // and fake the sequence visually.
-      
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,7 +52,7 @@ export default function Home() {
       
       const data = await response.json();
       
-      // Simulate timeline sequence visually for the WOW effect
+      // Simulate timeline sequence visually
       setAgentSteps([
         { agentName: 'Planner Agent', status: 'running', description: 'Deconstructing the problem...' },
         { agentName: 'Insight Agent', status: 'pending', description: 'Waiting into queue...' },
@@ -93,37 +88,34 @@ export default function Home() {
   };
 
   return (
-    <div className="container py-12 max-w-6xl">
-      {/* Hero Section */}
+    // EXPANDED WIDTH HERE! max-w-[1400px]
+    <div className="container py-12 max-w-[1400px] w-full px-4 md:px-8 mx-auto">
       <div className="text-center max-w-3xl mx-auto mb-16 space-y-4 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-        <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-2 shadow-sm shadow-primary/20 backdrop-blur-xl">
+        <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-sm font-medium text-primary mb-2 shadow-sm">
           <Sparkles className="mr-2 h-4 w-4" />
           Multi-Agent Strategy Pipeline
         </div>
-        <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl bg-clip-text text-transparent bg-gradient-to-r from-foreground via-foreground to-primary/60">
+        <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl text-slate-900">
           Turn problems into execution plans.
         </h1>
-        <p className="text-lg text-muted-foreground">
+        <p className="text-lg text-slate-600">
           Enter a problem statement. Watch three distinct AI agents break it down, enrich it with insights, and prepare a professional, editable report.
         </p>
       </div>
 
-      <div className="grid gap-10 md:grid-cols-12 max-w-5xl mx-auto">
-        {/* Left Column: Input Panel */}
-        <div className="md:col-span-5 space-y-6 animate-in fade-in slide-in-from-left-8 duration-700 delay-150">
-          <div className="relative group rounded-xl overflow-hidden p-1 shadow-xl">
-            {/* Animated border pulse */}
-            <div className="absolute inset-0 bg-gradient-to-r from-primary via-blue-500 to-purple-600 opacity-20 group-hover:opacity-40 transition-opacity blur duration-500" />
-            
-            <div className="relative bg-background/80 backdrop-blur-xl rounded-lg border border-border/50 p-6 flex flex-col gap-4">
+      <div className="grid gap-10 md:grid-cols-12 w-full">
+        {/* Left Column: Input Panel (Takes up 4 columns) */}
+        <div className="md:col-span-4 space-y-6 animate-in fade-in slide-in-from-left-8 duration-700 delay-150">
+          <div className="relative group rounded-xl overflow-hidden p-1 shadow-md bg-white border border-slate-200">
+            <div className="relative bg-white rounded-lg p-6 flex flex-col gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-semibold flex items-center gap-2">
+                <label className="text-sm font-semibold flex items-center gap-2 text-slate-800">
                   <Target className="w-4 h-4 text-primary" />
                   Define your goal / problem
                 </label>
                 <Textarea 
                   placeholder="e.g. Build a creator marketplace platform..."
-                  className="min-h-[140px] resize-none text-base bg-muted/30 border-muted-foreground/20 focus-visible:ring-primary/40 focus-visible:border-primary/50 shadow-inner"
+                  className="min-h-[140px] resize-none text-base bg-slate-50 border-slate-200 focus-visible:ring-primary/40 shadow-inner text-slate-900 placeholder:text-slate-400"
                   value={problem}
                   onChange={(e) => setProblem(e.target.value)}
                   disabled={isGenerating}
@@ -134,9 +126,8 @@ export default function Home() {
                 <Button 
                   onClick={() => handleGenerate()} 
                   disabled={!problem.trim() || isGenerating}
-                  className="w-full h-12 text-md gap-2 shadow-lg shadow-primary/20 group relative overflow-hidden"
+                  className="w-full h-12 text-md gap-2 shadow-md bg-primary hover:bg-primary/90 text-white"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                   {isGenerating ? (
                     <>
                       <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -145,15 +136,15 @@ export default function Home() {
                   ) : (
                     <>
                       Generate Strategic Plan 
-                      <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                      <ArrowRight className="h-5 w-5" />
                     </>
                   )}
                 </Button>
               </div>
 
               {!isGenerating && !report && (
-                <div className="pt-4 border-t border-border/40">
-                  <p className="text-xs text-muted-foreground font-medium mb-3 uppercase tracking-wider">Try an example</p>
+                <div className="pt-4 border-t border-slate-100">
+                  <p className="text-xs text-slate-500 font-medium mb-3 uppercase tracking-wider">Try an example</p>
                   <div className="flex flex-wrap gap-2">
                     {SUGGESTIONS.map((suggestion) => (
                       <button
@@ -162,7 +153,7 @@ export default function Home() {
                           setProblem(suggestion);
                           handleGenerate(suggestion);
                         }}
-                        className="text-left text-xs bg-muted/40 hover:bg-primary/10 hover:text-primary transition-colors border border-transparent hover:border-primary/20 rounded-md px-3 py-2"
+                        className="text-left text-xs bg-slate-50 text-slate-600 hover:bg-primary/10 hover:text-primary transition-colors border border-slate-200 hover:border-primary/30 rounded-md px-3 py-2"
                       >
                         {suggestion}
                       </button>
@@ -176,15 +167,15 @@ export default function Home() {
           <AgentTimeline />
         </div>
 
-        {/* Right Column: Output / Report */}
-        <div className="md:col-span-7 animate-in fade-in slide-in-from-right-8 duration-700 delay-300">
+        {/* Right Column: Output / Report (Takes up 8 columns for massive width!) */}
+        <div className="md:col-span-8 animate-in fade-in slide-in-from-right-8 duration-700 delay-300">
           {!report && !isGenerating && (
-            <div className="h-full flex flex-col items-center justify-center text-center p-12 rounded-xl border-2 border-dashed border-border/50 bg-muted/10 text-muted-foreground">
-              <div className="p-4 bg-muted rounded-full mb-4">
+            <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-center p-12 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 text-slate-500">
+              <div className="p-4 bg-white shadow-sm rounded-full mb-4">
                 <FileSignature className="w-8 h-8 opacity-50" />
               </div>
-              <h3 className="text-lg font-medium mb-2 text-foreground">Awaiting problem statement</h3>
-              <p className="max-w-xs mx-auto text-sm">
+              <h3 className="text-lg font-medium mb-2 text-slate-700">Awaiting problem statement</h3>
+              <p className="max-w-sm mx-auto text-sm">
                 Enter your problem on the left to initialize the multi-agent pipeline and generate your report.
               </p>
             </div>
@@ -192,34 +183,32 @@ export default function Home() {
 
           {isGenerating && !report && (
             <div className="space-y-6 opacity-60 pointer-events-none">
-              <div className="h-10 w-full bg-muted/50 rounded-lg animate-pulse" />
-              <div className="h-48 w-full bg-muted/30 rounded-xl animate-pulse" />
-              <div className="h-48 w-full bg-muted/30 rounded-xl animate-pulse" />
+              <div className="h-16 w-full bg-slate-100 rounded-lg animate-pulse" />
+              <div className="h-64 w-full bg-slate-100 rounded-xl animate-pulse" />
+              <div className="h-64 w-full bg-slate-100 rounded-xl animate-pulse" />
             </div>
           )}
 
           {report && (
-            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500 rounded-xl border border-primary/20 bg-background shadow-2xl overflow-hidden p-[1px]">
-              {/* Report Header */}
-              <div className="bg-muted/30 p-6 border-b border-border/50 flex flex-col gap-4 sticky top-16 z-10 backdrop-blur-xl">
+            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500 rounded-xl border border-slate-200 bg-slate-50/30 shadow-xl overflow-hidden pb-12">
+              <div className="bg-white p-6 border-b border-slate-200 flex flex-col gap-4 sticky top-16 z-10 shadow-sm">
                 <div className="flex justify-between items-start gap-4">
                   <div>
-                    <h2 className="text-2xl font-bold tracking-tight text-primary">Strategic Plan</h2>
-                    <p className="text-sm font-medium italic mt-1 text-muted-foreground border-l-2 border-primary/40 pl-3">
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">Strategic Plan</h2>
+                    <p className="text-sm font-medium italic mt-1 text-slate-600 border-l-2 border-primary/40 pl-3">
                       "{report.problemStatement}"
                     </p>
                   </div>
                   <ExportButtons />
                 </div>
                 
-                <div className="flex items-center gap-4 text-xs font-medium text-muted-foreground">
+                <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
                   <div className="flex items-center gap-1.5"><Bot className="w-3.5 h-3.5" /> 3 Agents Orchestrated</div>
-                  <div className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5" /> Complete</div>
+                  <div className="flex items-center gap-1.5 text-emerald-600"><CheckCircle className="w-3.5 h-3.5" /> Complete</div>
                 </div>
               </div>
 
-              {/* Report Body (Printable container) */}
-              <div id="report-container" className="p-6 md:p-8 space-y-6">
+              <div id="report-container" className="p-6 md:p-8 lg:p-10 space-y-8">
                 {report.sections.map((section) => (
                   <ReportSection key={section.id} section={section} />
                 ))}

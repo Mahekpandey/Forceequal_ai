@@ -5,15 +5,14 @@ import { persist } from 'zustand/middleware';
 import { Report, AgentStep, VersionEntry } from './types';
 
 interface ReportStore {
-  // State
   report: Report | null;
   agentSteps: AgentStep[];
   isGenerating: boolean;
   editingSection: string | null;
+  highlightedText: string | null; // NEW STATE
   isEditing: boolean;
   isExporting: boolean;
 
-  // Actions
   setReport: (report: Report) => void;
   updateSection: (sectionId: string, newContent: string) => void;
   addVersion: (version: VersionEntry) => void;
@@ -21,6 +20,7 @@ interface ReportStore {
   updateAgentStep: (index: number, step: Partial<AgentStep>) => void;
   setIsGenerating: (val: boolean) => void;
   setEditingSection: (sectionId: string | null) => void;
+  setHighlightedText: (text: string | null) => void; // NEW ACTION
   setIsEditing: (val: boolean) => void;
   setIsExporting: (val: boolean) => void;
   reset: () => void;
@@ -33,6 +33,7 @@ export const useReportStore = create<ReportStore>()(
       agentSteps: [],
       isGenerating: false,
       editingSection: null,
+      highlightedText: null,
       isEditing: false,
       isExporting: false,
 
@@ -64,16 +65,14 @@ export const useReportStore = create<ReportStore>()(
         }),
 
       setAgentSteps: (steps) => set({ agentSteps: steps }),
-
       updateAgentStep: (index, step) =>
         set((state) => ({
-          agentSteps: state.agentSteps.map((s, i) =>
-            i === index ? { ...s, ...step } : s
-          ),
+          agentSteps: state.agentSteps.map((s, i) => (i === index ? { ...s, ...step } : s)),
         })),
 
       setIsGenerating: (val) => set({ isGenerating: val }),
       setEditingSection: (sectionId) => set({ editingSection: sectionId }),
+      setHighlightedText: (text) => set({ highlightedText: text }),
       setIsEditing: (val) => set({ isEditing: val }),
       setIsExporting: (val) => set({ isExporting: val }),
 
@@ -83,6 +82,7 @@ export const useReportStore = create<ReportStore>()(
           agentSteps: [],
           isGenerating: false,
           editingSection: null,
+          highlightedText: null,
           isEditing: false,
           isExporting: false,
         }),
