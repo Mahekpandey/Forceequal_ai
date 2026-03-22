@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // Use 1.5-flash! It is the most stable and fastest model for Vercel deployments.
-export const MODEL_NAME = 'gemini-1.5-flash';
+export const MODEL_NAME = 'gemini-3-pro-preview';
 
 export function getModel() {
   return genAI.getGenerativeModel({
@@ -72,34 +72,30 @@ export function cleanJSON(jsonContent: string): string {
 
   let result = '';
   let inString = false;
-  let isEscaped = false;
 
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     
-    if (char === '\\') {
-      isEscaped = !isEscaped;
-      result += char;
-      continue;
+    // Count preceding backslashes to determine if current char is escaped
+    let escapeCount = 0;
+    for (let j = i - 1; j >= 0 && text[j] === '\\'; j--) {
+      escapeCount++;
     }
+    const isEscaped = escapeCount % 2 === 1;
 
     if (char === '"' && !isEscaped) {
       inString = !inString;
-      result += char;
-      continue;
     }
 
     if (inString && char === '\n') {
       result += '\\n';
     } else if (inString && char === '\r') {
-      // Ignore \r
+      // Skip carriage returns
     } else if (inString && char === '\t') {
       result += '\\t';
     } else {
       result += char;
     }
-
-    isEscaped = false;
   }
   
   return result;
