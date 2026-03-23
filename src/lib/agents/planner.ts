@@ -14,15 +14,14 @@ CRITICAL JSON INSTRUCTIONS:
 - Escape ALL double quotes inside string values strictly as \\".
 - Do not include markdown blocks (\`\`\`json). Just return the raw JSON.
 
-Content Requirements (keep each section focused so the full JSON completes):
-- "problemBreakdown": Analysis, problem definition, scope, challenges. Use ## headings and bullet points.
-- "stakeholders": Stakeholders, roles, interests. Use a markdown table and a Mermaid.js pie chart.
-- "solutionApproach": High-level outline, components, and a Mermaid.js diagram.
-- "actionPlan": Phases, milestones, timeline table, and a Mermaid.js Gantt chart.
+Content Requirements (intermediate draft only; keep concise for fast inference):
+- "problemBreakdown": 70-120 words, bullets allowed.
+- "stakeholders": 60-100 words and one compact markdown table.
+- "solutionApproach": 70-120 words with clear phased outline.
+- "actionPlan": 70-120 words with short timeline bullets.
+- Do NOT include Mermaid diagrams in planner output.
 
-CRITICAL MERMAID INSTRUCTION: You MUST wrap all Mermaid diagrams exactly in \\\`\\\`\\\`mermaid and \\\`\\\`\\\` tags. Do NOT start the diagram text with the word 'mermaid'. Start directly with 'graph', 'pie', or 'gantt'.
-
-Make each section substantive (about 120–200 words each; stay concise enough to finish the full JSON in one response). Use professional business language.
+Keep total output concise and focused.
 
 You MUST output a single complete, valid JSON object. Do not stop early or truncate any string value.`;
 

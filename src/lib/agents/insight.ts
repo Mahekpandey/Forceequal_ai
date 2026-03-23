@@ -5,27 +5,27 @@ import { ensureTimelineFields } from './timeline-meta';
 export async function runInsightAgent(plannerOutput: PlannerOutput): Promise<InsightOutput> {
   const model = getModel();
   
-  const prompt = `You are a Business Strategist and Research Analyst. ENRICH and DEEPEN the following strategic outline.
+  const prompt = `You are a Business Strategist and Research Analyst. Improve this draft quickly and concisely.
   
-Please expand upon all four sections simultaneously. Keep original points but add strategic depth. Make each section robust (at least 200 words).
+Add strategic depth while staying brief so the response completes fast.
 
 [1. Problem Breakdown]
 Original: ${plannerOutput.problemBreakdown}
-Instructions: Add market context, industry trends, competitive landscape analysis, and potential risks. Add a 'Key Risks' subsection with a markdown table.
+Instructions: Add market context and key risks. Keep to 90-140 words.
 
 [2. Stakeholders]
 Original: ${plannerOutput.stakeholders}
-Instructions: Enrich with power/interest grid analysis. Add a stakeholder priority matrix as a markdown table and a Mermaid.js relationship graph.
+Instructions: Add a concise power/interest view and one small stakeholder priority table. Keep to 80-130 words.
 
 [3. Solution Approach]
 Original: ${plannerOutput.solutionApproach}
-Instructions: Add technical feasibility assessment, resource requirements, alternative approaches (with pros/cons table), and a detailed Mermaid.js architecture diagram.
+Instructions: Add feasibility, resources, and one compact pros/cons table. Keep to 90-140 words.
 
 [4. Action Plan]
 Original: ${plannerOutput.actionPlan}
-Instructions: Add detailed resource allocation, budget considerations, KPIs. Enhance the timeline with a detailed Mermaid.js Gantt chart.
+Instructions: Add budget/KPI notes and a short practical timeline. Keep to 90-140 words.
 
-CRITICAL MERMAID INSTRUCTION: You MUST wrap all Mermaid diagrams exactly in \\\`\\\`\\\`mermaid and \\\`\\\`\\\` tags. Do NOT start the diagram text with the word 'mermaid'. Start directly with 'graph', 'pie', or 'gantt'.
+Do NOT include Mermaid diagrams in insight output.
 
 CRITICAL JSON INSTRUCTIONS:
 - You MUST return ONLY a valid JSON object.

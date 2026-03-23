@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useId } from 'react';
 import { Sparkles, ArrowRight, Loader2, Undo2, CheckCircle2, History } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -14,7 +14,8 @@ let renderQueue = Promise.resolve();
 const MermaidChart = ({ chart }: { chart: string }) => {
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<boolean>(false);
-  const id = useRef(`mermaid-${Math.random().toString(36).substring(7)}`);
+  const reactId = useId();
+  const id = useRef(`mermaid-${reactId.replace(/:/g, '')}`);
   
   useEffect(() => {
     let isMounted = true;
@@ -62,6 +63,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useReportStore } from '@/lib/store';
+import { sanitizeMarkdown } from '@/lib/markdown/sanitize';
 
 const QUICK_ACTIONS = [
   "Make this more actionable",
@@ -88,6 +90,7 @@ export function EditDialog() {
   const [activeTab, setActiveTab] = useState('edit');
 
   const section = report?.sections.find((s) => s.id === editingSection);
+  const safeSectionContent = section ? sanitizeMarkdown(section.content) : '';
   
   // Get history for this specific section, newest first
   const sectionHistory = report?.versions.filter(v => v.sectionId === editingSection).reverse() || [];
@@ -245,7 +248,7 @@ export function EditDialog() {
                       remarkPlugins={[remarkGfm]}
                       components={MarkdownComponents}
                     >
-                      {section.content}
+                      {safeSectionContent}
                     </ReactMarkdown>
                   </div>
                 </div>
@@ -264,7 +267,7 @@ export function EditDialog() {
                         remarkPlugins={[remarkGfm]}
                         components={MarkdownComponents}
                       >
-                        {previewContent}
+                        {sanitizeMarkdown(previewContent)}
                       </ReactMarkdown>
                     )}
                   </div>

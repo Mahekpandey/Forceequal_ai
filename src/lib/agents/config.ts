@@ -6,14 +6,14 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 // Gemini 2.5 Flash — fast JSON generation; split API routes avoid per-invocation timeouts on Vercel.
 export const MODEL_NAME = 'gemini-2.5-flash';
 
-/** Default cap for agents that emit large JSON-wrapped markdown (insight / executor). */
-const DEFAULT_MAX_OUTPUT = 32768;
+/** Default cap for agents that emit JSON-wrapped markdown (insight / executor). */
+const DEFAULT_MAX_OUTPUT = 12288;
 
 /**
  * Planner packs four long markdown sections into one JSON object; 8k tokens routinely truncates
  * mid-string and breaks JSON.parse. Keep this high enough for a complete response.
  */
-const PLANNER_MAX_OUTPUT = 65536;
+const PLANNER_MAX_OUTPUT = 16384;
 
 export function getModel() {
   return genAI.getGenerativeModel({

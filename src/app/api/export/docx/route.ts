@@ -6,6 +6,7 @@ import {
 } from 'docx';
 import { ExportRequest, ReportSection } from '@/lib/types';
 import { marked } from 'marked';
+import { sanitizeMarkdown } from '@/lib/markdown/sanitize';
 
 export const maxDuration = 30;
 
@@ -96,7 +97,8 @@ export async function POST(req: Request) {
           })
         );
         
-        const lines = section.content.split('\n');
+        const normalizedContent = sanitizeMarkdown(section.content);
+        const lines = normalizedContent.split('\n');
         const fixedLines = [];
         let inTable = false;
 

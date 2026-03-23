@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useId } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import mermaid from 'mermaid';
@@ -15,7 +15,8 @@ let renderQueue = Promise.resolve();
 const MermaidChart = ({ chart }: { chart: string }) => {
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<boolean>(false);
-  const id = useRef(`mermaid-${Math.random().toString(36).substring(7)}`);
+  const reactId = useId();
+  const id = useRef(`mermaid-${reactId.replace(/:/g, '')}`);
   
   useEffect(() => {
     let isMounted = true;
@@ -56,6 +57,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ReportSection as ReportSectionType } from '@/lib/types';
 import { useReportStore } from '@/lib/store';
+import { sanitizeMarkdown } from '@/lib/markdown/sanitize';
 
 const iconMap = {
   AlertCircle: AlertCircle,
@@ -68,6 +70,7 @@ export function ReportSection({ section }: { section: ReportSectionType }) {
   const { setEditingSection, setHighlightedText, report } = useReportStore();
   const IconComponent = iconMap[section.icon as keyof typeof iconMap] || AlertCircle;
   const versionCount = report?.versions.filter(v => v.sectionId === section.id).length || 0;
+  const safeContent = sanitizeMarkdown(section.content);
   
   const [popupPos, setPopupPos] = useState<{ top: number, left: number } | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -189,7 +192,7 @@ export function ReportSection({ section }: { section: ReportSectionType }) {
               remarkPlugins={[remarkGfm]}
               components={MarkdownComponents}
             >
-              {section.content}
+              {safeContent}
             </ReactMarkdown>
           </div>
         </CardContent>
