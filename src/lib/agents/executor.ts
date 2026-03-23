@@ -13,7 +13,7 @@ FORMATTING RULES FOR ALL SECTIONS:
 - Use markdown tables with proper headers for all tabular data.
 - Include exactly one Mermaid.js diagram per section (simple, valid syntax).
 - CRITICAL: You MUST wrap all Mermaid diagrams exactly in \\\`\\\`\\\`mermaid and \\\`\\\`\\\` tags. Do NOT start the diagram text with the word 'mermaid'. Start directly with 'graph', 'pie', or 'gantt'.
-- Keep each section concise (120-180 words) so full JSON completes within one response.
+- Keep each section detailed and comprehensive (200-300 words) so the document is thorough.
 
 [1. Problem Breakdown]
 Raw Data: ${insightOutput.problemBreakdown}
@@ -46,7 +46,7 @@ You MUST return a complete JSON object in one response and avoid truncation.`;
   const compactRetryPrompt = `${prompt}
 
 If the previous attempt is too long, regenerate a compact version:
-- each section 90-130 words
+- each section 150-200 words
 - use short tables (max 4 rows)
 - Mermaid diagrams max 6 lines each.`;
 

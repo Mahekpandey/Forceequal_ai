@@ -7,6 +7,7 @@ import { saveAs } from 'file-saver';
 import { useReportStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { sanitizeMarkdown } from '@/lib/markdown/sanitize';
+import * as htmlToImage from 'html-to-image';
 
 export function ExportButtons() {
   const report = useReportStore((state) => state.report);
@@ -121,24 +122,61 @@ export function ExportButtons() {
       const reportContainer = document.getElementById('report-container');
       if (!reportContainer) throw new Error('Report container not found');
 
-      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-        import('jspdf'),
-        import('html2canvas'),
+      const [{ default: jsPDF }] = await Promise.all([
+        import('jspdf')
       ]);
       const previousBg = reportContainer.style.backgroundColor;
       reportContainer.style.backgroundColor = '#ffffff';
 
       // Let mermaid finishes paint before raster capture.
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
-      const canvas = await html2canvas(reportContainer, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
+      // Temporarily rasterize SVGs to images to bypass rendering issues with html-to-image
+      const originalSvgs = new Map<Element, Element>();
+      const mermaidEls = reportContainer.querySelectorAll('.mermaid-chart svg');
+      
+      for (const svg of Array.from(mermaidEls)) {
+         const bounds = svg.getBoundingClientRect();
+         svg.setAttribute('width', `${bounds.width}px`);
+         svg.setAttribute('height', `${bounds.height}px`);
+
+         let svgData = new XMLSerializer().serializeToString(svg);
+         if (!svgData.includes('xmlns=')) {
+             svgData = svgData.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+         }
+         svgData = svgData.replace(/<svg([^>]*)>/, `<svg$1><rect width="100%" height="100%" fill="white"/>`);
+
+         const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+         const url = URL.createObjectURL(svgBlob);
+         
+         const img = new Image();
+         await new Promise((resolve) => {
+           img.onload = resolve;
+           img.onerror = resolve;
+           img.src = url;
+         });
+
+         originalSvgs.set(svg, img);
+         svg.replaceWith(img);
+         URL.revokeObjectURL(url);
+      }
+
+      // We use html-to-image which properly supports oklch and modern CSS natively in the browser via foreignObject
+      const dataUrl = await htmlToImage.toJpeg(reportContainer, {
+        quality: 0.95,
         backgroundColor: '#ffffff',
-        scrollY: -window.scrollY,
-        windowWidth: document.documentElement.scrollWidth,
+        pixelRatio: 2,
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+          width: `${reportContainer.offsetWidth}px`,
+        }
       });
+
+      // Restore original SVGs
+      for (const [svg, img] of originalSvgs.entries()) {
+        img.replaceWith(svg);
+      }
 
       reportContainer.style.backgroundColor = previousBg;
 
@@ -148,6 +186,9 @@ export function ExportButtons() {
         unit: 'mm',
         format: 'a4',
       });
+
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const canvas = { width: imgProps.width, height: imgProps.height };
 
       const pdfMargin = 15; 
       const pdfWidth = 297; 
@@ -163,7 +204,7 @@ export function ExportButtons() {
       // Loop to slice the image and add pages
       while (heightLeft > 0) {
         // Draw the massive canvas starting from a negative Y offset
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', pdfMargin, position, imgWidth, imgHeight);
+        pdf.addImage(dataUrl, 'JPEG', pdfMargin, position, imgWidth, imgHeight);
         
         // Mask the top and bottom margins with white rectangles so the image doesn't bleed into the physical margins!
         pdf.setFillColor(255, 255, 255);
