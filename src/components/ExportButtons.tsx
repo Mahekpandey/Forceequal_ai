@@ -34,52 +34,23 @@ export function ExportButtons() {
                const svg = wrapper.querySelector('svg');
                if (!svg) continue;
 
-               // Freeze computed dimensions into hard attributes so the canvas parser knows how big to draw it
                const bounds = svg.getBoundingClientRect();
-               svg.setAttribute('width', `${bounds.width}px`);
-               svg.setAttribute('height', `${bounds.height}px`);
 
-               // Serialize SVG to raw XML
-               let svgData = new XMLSerializer().serializeToString(svg);
-               
-               // Ensure XML namespaces exist so the browser Image parser accepts it
-               if (!svgData.includes('xmlns=')) {
-                   svgData = svgData.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-               }
-
-               // Inject a stark white background underneath the SVG to avoid black-on-transparent DOCX rendering
-               svgData = svgData.replace(/<svg([^>]*)>/, `<svg$1><rect width="100%" height="100%" fill="white"/>`);
-
-               // Magically render the raw XML perfectly using the browser's native C++ rendering engine
-               const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-               const url = URL.createObjectURL(svgBlob);
-               
-               const img = new Image();
-               await new Promise((resolve) => {
-                 img.onload = resolve;
-                 img.onerror = resolve; // Continue on error to not break export
-                 img.src = url;
-               });
-
-               // Blast the high-resolution image into a virtual Canvas
-               const canvas = document.createElement('canvas');
-               canvas.width = img.width * 2; // Retina scale 2x
-               canvas.height = img.height * 2;
-               const ctx = canvas.getContext('2d');
-               
-               if (ctx) {
-                 ctx.fillStyle = 'white';
-                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                 
-                 diagrams.push({
-                   base64: canvas.toDataURL('image/png'),
-                   width: img.width, // Pass logical DOCX dimensions
-                   height: img.height
+               try {
+                 const dataUrl = await htmlToImage.toPng(svg as unknown as HTMLElement, {
+                   backgroundColor: 'white',
+                   pixelRatio: 2,
+                   style: { margin: '0' }
                  });
+
+                 diagrams.push({
+                   base64: dataUrl,
+                   width: bounds.width,
+                   height: bounds.height
+                 });
+               } catch (e) {
+                 console.error('Failed to rasterize SVG for DOCX', e);
                }
-               
-               URL.revokeObjectURL(url);
             }
             return {
               ...section,
@@ -137,28 +108,24 @@ export function ExportButtons() {
       
       for (const svg of Array.from(mermaidEls)) {
          const bounds = svg.getBoundingClientRect();
-         svg.setAttribute('width', `${bounds.width}px`);
-         svg.setAttribute('height', `${bounds.height}px`);
-
-         let svgData = new XMLSerializer().serializeToString(svg);
-         if (!svgData.includes('xmlns=')) {
-             svgData = svgData.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-         }
-         svgData = svgData.replace(/<svg([^>]*)>/, `<svg$1><rect width="100%" height="100%" fill="white"/>`);
-
-         const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-         const url = URL.createObjectURL(svgBlob);
          
-         const img = new Image();
-         await new Promise((resolve) => {
-           img.onload = resolve;
-           img.onerror = resolve;
-           img.src = url;
-         });
-
-         originalSvgs.set(svg, img);
-         svg.replaceWith(img);
-         URL.revokeObjectURL(url);
+         try {
+           const dataUrl = await htmlToImage.toPng(svg as unknown as HTMLElement, {
+             backgroundColor: 'white',
+             pixelRatio: 2,
+             style: { margin: '0' }
+           });
+           
+           const img = new Image();
+           img.src = dataUrl;
+           img.style.width = `${bounds.width}px`;
+           img.style.height = `${bounds.height}px`;
+           
+           originalSvgs.set(svg, img);
+           svg.replaceWith(img);
+         } catch (e) {
+           console.error('Failed to rasterize SVG for PDF', e);
+         }
       }
 
       // We use html-to-image which properly supports oklch and modern CSS natively in the browser via foreignObject
