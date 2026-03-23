@@ -1,5 +1,6 @@
-import { getModel, cleanJSON } from './config';
+import { getModel, safeParseJson } from './config';
 import { PlannerOutput, InsightOutput } from '../types';
+import { ensureTimelineFields } from './timeline-meta';
 
 export async function runInsightAgent(plannerOutput: PlannerOutput): Promise<InsightOutput> {
   const model = getModel();
@@ -28,19 +29,36 @@ CRITICAL MERMAID INSTRUCTION: You MUST wrap all Mermaid diagrams exactly in \\\`
 
 CRITICAL JSON INSTRUCTIONS:
 - You MUST return ONLY a valid JSON object.
-- Keys must be exactly: "problemBreakdown", "stakeholders", "solutionApproach", "actionPlan".
-- Values must be strings containing the markdown content.
+- Keys must be exactly: "problemBreakdown", "stakeholders", "solutionApproach", "actionPlan", "progressNote", "thinkingSteps".
+- The four report keys must be strings containing the markdown content.
+- "progressNote": one sentence (max 220 characters) summarizing how you enriched the plan (plain text).
+- "thinkingSteps": JSON array of exactly 5 short strings (each max 120 characters), ordered sub-steps of your analysis (present tense).
 - Escape ALL newlines inside string values strictly as \\n.
 - Escape ALL double quotes inside string values strictly as \\".
 - Do not include markdown blocks (\`\`\`json).`;
 
   try {
     const result = await model.generateContent(prompt);
-    let text = cleanJSON(result.response.text());
-    return JSON.parse(text) as InsightOutput;
+    const parsed = safeParseJson<Record<string, unknown>>(result.response.text());
+    const { progressNote, thinkingSteps } = ensureTimelineFields(parsed);
+    return {
+      problemBreakdown: String(parsed.problemBreakdown ?? ''),
+      stakeholders: String(parsed.stakeholders ?? ''),
+      solutionApproach: String(parsed.solutionApproach ?? ''),
+      actionPlan: String(parsed.actionPlan ?? ''),
+      progressNote,
+      thinkingSteps,
+    };
   } catch (error) {
     console.error("Insight Agent Generate/Parse Error:", error);
     // Ultimate fallback: return original content rather than crashing the pipeline
-    return plannerOutput; 
+    return {
+      ...plannerOutput,
+      progressNote: plannerOutput.progressNote || 'Reused planner output after insight error.',
+      thinkingSteps:
+        plannerOutput.thinkingSteps?.length > 0
+          ? plannerOutput.thinkingSteps
+          : ['Skipped deep insight pass; using planner draft.'],
+    };
   }
 }

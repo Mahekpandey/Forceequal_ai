@@ -34,6 +34,8 @@ export interface AgentStep {
   description: string;
   duration?: number;
   output?: string;
+  /** Short reasoning beats returned by the model for the timeline UI */
+  thinkingSteps?: string[];
 }
 
 // API Request/Response types
@@ -66,6 +68,10 @@ export interface PlannerOutput {
   stakeholders: string;
   solutionApproach: string;
   actionPlan: string;
+  /** One-line summary from the model for the activity timeline */
+  progressNote: string;
+  /** 4–6 short strings the UI can show as this agent's reasoning trail */
+  thinkingSteps: string[];
 }
 
 export interface InsightOutput {
@@ -73,6 +79,8 @@ export interface InsightOutput {
   stakeholders: string;
   solutionApproach: string;
   actionPlan: string;
+  progressNote: string;
+  thinkingSteps: string[];
 }
 
 export interface ExecutorOutput {
@@ -80,4 +88,6 @@ export interface ExecutorOutput {
   stakeholders: string;
   solutionApproach: string;
   actionPlan: string;
+  progressNote: string;
+  thinkingSteps: string[];
 }

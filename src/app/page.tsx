@@ -6,6 +6,7 @@ import { Sparkles, ArrowRight, FileSignature, Target, Bot, CheckCircle, Loader2 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useReportStore } from '@/lib/store';
+import type { AgentStep, GenerateResponse } from '@/lib/types';
 import { ReportSection } from '@/components/ReportSection';
 import { AgentTimeline } from '@/components/AgentTimeline';
 import { EditDialog } from '@/components/EditDialog';
@@ -34,58 +35,102 @@ export default function Home() {
     reset();
     setIsGenerating(true);
     setProblem(query);
-    
-    // Start the Planner Agent immediately so the user sees activity right away
-    setAgentSteps([
-      { agentName: 'Planner Agent', status: 'running', description: 'Deconstructing the problem statement...' },
-      { agentName: 'Insight Agent', status: 'pending', description: 'Waiting into queue...' },
-      { agentName: 'Executor Agent', status: 'pending', description: 'Waiting into queue...' },
-    ]);
 
-    // Run the API call and timeline animation in parallel
-    const apiPromise = fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ problemStatement: query }),
-    });
+    const stepsWhileRunning = (activeIndex: 0 | 1 | 2): AgentStep[] => {
+      const labels = [
+        { agentName: 'Planner Agent' as const, run: 'Running planner (Gemini 2.5 Flash)…', wait: 'Queued' },
+        { agentName: 'Insight Agent' as const, run: 'Running insight enrichment…', wait: 'Queued' },
+        { agentName: 'Executor Agent' as const, run: 'Formatting executive report…', wait: 'Queued' },
+      ];
+      return labels.map((L, i) => ({
+        agentName: L.agentName,
+        status: i < activeIndex ? 'completed' : i === activeIndex ? 'running' : 'pending',
+        description: i < activeIndex ? '' : i === activeIndex ? L.run : L.wait,
+      })) as AgentStep[];
+    };
 
-    // Timeline animation runs independently while API processes
-    // Phase 1: Planner runs for ~8 seconds
-    await new Promise(r => setTimeout(r, 8000));
-    
-    setAgentSteps([
-      { agentName: 'Planner Agent', status: 'completed', description: 'Problem broken into core strategic tracks' },
-      { agentName: 'Insight Agent', status: 'running', description: 'Enriching with market research and strategic risks...' },
-      { agentName: 'Executor Agent', status: 'pending', description: 'Waiting into queue...' },
-    ]);
+    setAgentSteps(stepsWhileRunning(0));
 
-    // Phase 2: Insight Agent runs for ~10 seconds
-    await new Promise(r => setTimeout(r, 10000));
+    const readError = async (res: Response) => {
+      try {
+        const j = (await res.json()) as { error?: string };
+        return j.error || res.statusText;
+      } catch {
+        return res.statusText;
+      }
+    };
 
-    setAgentSteps([
-      { agentName: 'Planner Agent', status: 'completed', description: 'Problem broken into core strategic tracks' },
-      { agentName: 'Insight Agent', status: 'completed', description: 'Added strategic insights and risk pathways' },
-      { agentName: 'Executor Agent', status: 'running', description: 'Formatting final professional report...' },
-    ]);
-
-    // Now wait for the actual API response
     try {
-      const response = await apiPromise;
-      if (!response.ok) throw new Error('Generation failed');
-      
-      const data = await response.json();
+      const pRes = await fetch('/api/generate/planner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ problemStatement: query }),
+      });
+      if (!pRes.ok) throw new Error(await readError(pRes));
 
-      // Small delay so the Executor animation plays for a moment
-      await new Promise(r => setTimeout(r, 2000));
+      const pData = (await pRes.json()) as
+        | { cached: true; report: GenerateResponse['report']; agentSteps: AgentStep[] }
+        | { cached: false; plannerOutput: unknown; step: AgentStep };
 
-      // Set final state from API response
-      setAgentSteps(data.agentSteps);
-      setReport(data.report);
-      
+      if ('cached' in pData && pData.cached) {
+        setAgentSteps(pData.agentSteps);
+        setReport(pData.report);
+        return;
+      }
+
+      const { plannerOutput, step: plannerStep } = pData as {
+        plannerOutput: unknown;
+        step: AgentStep;
+      };
+
+      setAgentSteps([
+        plannerStep,
+        { agentName: 'Insight Agent', status: 'running', description: 'Running insight enrichment…' },
+        { agentName: 'Executor Agent', status: 'pending', description: 'Queued' },
+      ]);
+
+      const iRes = await fetch('/api/generate/insight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plannerOutput }),
+      });
+      if (!iRes.ok) throw new Error(await readError(iRes));
+
+      const { insightOutput, step: insightStep } = (await iRes.json()) as {
+        insightOutput: unknown;
+        step: AgentStep;
+      };
+
+      setAgentSteps([
+        plannerStep,
+        insightStep,
+        { agentName: 'Executor Agent', status: 'running', description: 'Formatting executive report…' },
+      ]);
+
+      const priorAgentSteps = [plannerStep, insightStep];
+      const eRes = await fetch('/api/generate/executor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          insightOutput,
+          problemStatement: query,
+          priorAgentSteps,
+        }),
+      });
+      if (!eRes.ok) throw new Error(await readError(eRes));
+
+      const { report, agentSteps } = (await eRes.json()) as GenerateResponse;
+      setAgentSteps(agentSteps);
+      setReport(report);
     } catch (error) {
       console.error('Failed to generate report:', error);
+      const msg = error instanceof Error ? error.message : 'Generation failed';
       setAgentSteps([
-        { agentName: 'Planner Agent', status: 'error', description: 'Failed to generate report.' },
+        {
+          agentName: 'Pipeline',
+          status: 'error',
+          description: msg,
+        },
       ]);
     } finally {
       setIsGenerating(false);

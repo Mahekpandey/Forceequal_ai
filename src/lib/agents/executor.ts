@@ -1,5 +1,6 @@
-import { getModel, cleanJSON } from './config';
+import { getModel, safeParseJson } from './config';
 import { InsightOutput, ExecutorOutput } from '../types';
+import { ensureTimelineFields } from './timeline-meta';
 
 export async function runExecutorAgent(insightOutput: InsightOutput): Promise<ExecutorOutput> {
   const model = getModel();
@@ -32,19 +33,36 @@ Specific Rules: Include a detailed Gantt-style timeline table, budget breakdown,
 
 CRITICAL JSON INSTRUCTIONS:
 - You MUST return ONLY a valid JSON object.
-- Keys must be exactly: "problemBreakdown", "stakeholders", "solutionApproach", "actionPlan".
-- Values must be strings containing the markdown content.
+- Keys must be exactly: "problemBreakdown", "stakeholders", "solutionApproach", "actionPlan", "progressNote", "thinkingSteps".
+- The four report keys must be strings containing the markdown content.
+- "progressNote": one sentence (max 220 characters) on how you polished the deliverable (plain text).
+- "thinkingSteps": JSON array of exactly 5 short strings (each max 120 characters), ordered sub-steps of formatting and synthesis (present tense).
 - Escape ALL newlines inside string values strictly as \\n.
 - Escape ALL double quotes inside string values strictly as \\".
 - Do not include markdown blocks (\`\`\`json).`;
 
   try {
     const result = await model.generateContent(prompt);
-    let text = cleanJSON(result.response.text());
-    return JSON.parse(text) as ExecutorOutput;
+    const parsed = safeParseJson<Record<string, unknown>>(result.response.text());
+    const { progressNote, thinkingSteps } = ensureTimelineFields(parsed);
+    return {
+      problemBreakdown: String(parsed.problemBreakdown ?? ''),
+      stakeholders: String(parsed.stakeholders ?? ''),
+      solutionApproach: String(parsed.solutionApproach ?? ''),
+      actionPlan: String(parsed.actionPlan ?? ''),
+      progressNote,
+      thinkingSteps,
+    };
   } catch (error) {
     console.error("Executor Agent Generate/Parse Error:", error);
     // Ultimate fallback: return insight content rather than crashing the pipeline
-    return insightOutput; 
+    return {
+      ...insightOutput,
+      progressNote: insightOutput.progressNote || 'Reused prior sections after executor error.',
+      thinkingSteps:
+        insightOutput.thinkingSteps?.length > 0
+          ? insightOutput.thinkingSteps
+          : ['Skipped final polish pass; using prior sections.'],
+    };
   }
 }

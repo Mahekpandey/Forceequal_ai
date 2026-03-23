@@ -3,15 +3,35 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // Initialize the Gemini client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// Use 1.5-flash! It is the most stable and fastest model for Vercel deployments.
-export const MODEL_NAME = 'gemini-3-pro-preview';
+// Gemini 2.5 Flash — fast JSON generation; split API routes avoid per-invocation timeouts on Vercel.
+export const MODEL_NAME = 'gemini-2.5-flash';
+
+/** Default cap for agents that emit large JSON-wrapped markdown (insight / executor). */
+const DEFAULT_MAX_OUTPUT = 32768;
+
+/**
+ * Planner packs four long markdown sections into one JSON object; 8k tokens routinely truncates
+ * mid-string and breaks JSON.parse. Keep this high enough for a complete response.
+ */
+const PLANNER_MAX_OUTPUT = 65536;
 
 export function getModel() {
   return genAI.getGenerativeModel({
     model: MODEL_NAME,
     generationConfig: {
       temperature: 0.7,
-      maxOutputTokens: 8192,
+      maxOutputTokens: DEFAULT_MAX_OUTPUT,
+      responseMimeType: 'application/json',
+    },
+  });
+}
+
+export function getPlannerModel() {
+  return genAI.getGenerativeModel({
+    model: MODEL_NAME,
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: PLANNER_MAX_OUTPUT,
       responseMimeType: 'application/json',
     },
   });
@@ -72,31 +92,113 @@ export function cleanJSON(jsonContent: string): string {
 
   let result = '';
   let inString = false;
+  let escape = false;
 
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
-    
-    // Count preceding backslashes to determine if current char is escaped
-    let escapeCount = 0;
-    for (let j = i - 1; j >= 0 && text[j] === '\\'; j--) {
-      escapeCount++;
-    }
-    const isEscaped = escapeCount % 2 === 1;
 
-    if (char === '"' && !isEscaped) {
-      inString = !inString;
+    if (!inString) {
+      if (char === '"') inString = true;
+      result += char;
+      continue;
     }
 
-    if (inString && char === '\n') {
+    // Inside JSON string
+    if (escape) {
+      result += char;
+      escape = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      result += char;
+      escape = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = false;
+      result += char;
+      continue;
+    }
+
+    if (char === '\n') {
       result += '\\n';
-    } else if (inString && char === '\r') {
-      // Skip carriage returns
-    } else if (inString && char === '\t') {
+    } else if (char === '\r') {
+      // Skip carriage returns inside strings
+    } else if (char === '\t') {
       result += '\\t';
     } else {
       result += char;
     }
   }
-  
+
   return result;
+}
+
+export function extractFirstJsonObject(text: string): string | null {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < text.length; i++) {
+    const char = text[i];
+
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (char === '\\') {
+        escape = true;
+        continue;
+      }
+      if (char === '"') inString = false;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === '{') depth++;
+    if (char === '}') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+
+  return null;
+}
+
+function tryParseJson<T>(text: string): T | null {
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function safeParseJson<T = unknown>(raw: string): T {
+  const trimmed = raw.trim();
+  const variants = [trimmed, cleanJSON(trimmed)];
+
+  for (const variant of variants) {
+    const extracted = extractFirstJsonObject(variant) ?? variant;
+    const noTrailingCommas = extracted.replace(/,\s*([}\]])/g, '$1');
+
+    const parsed1 = tryParseJson<T>(extracted);
+    if (parsed1 !== null) return parsed1;
+
+    const parsed2 = tryParseJson<T>(noTrailingCommas);
+    if (parsed2 !== null) return parsed2;
+  }
+
+  // Give caller a better error context without flooding logs.
+  const preview = trimmed.length > 400 ? `${trimmed.slice(0, 400)}...` : trimmed;
+  throw new Error(`Failed to parse model JSON. Preview: ${preview}`);
 }
